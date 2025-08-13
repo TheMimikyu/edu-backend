@@ -56,8 +56,6 @@ Please only include content about the chapter that is assigned to you in the fol
 class ExplainerAgent(StandardAgent):
     """
     Custom loop agent to provide a feedback loop between the explainer and the react parser.
-    I unfortunately cannot use adks loop agent because of missing functionality,
-    see https://github.com/google/adk-python/issues/1235
     """
     def __init__(self, app_name: str, session_service, iterations = 5):
         self.explainer = CodingExplainer(app_name=app_name, session_service=session_service)
