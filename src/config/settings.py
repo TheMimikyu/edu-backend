@@ -24,3 +24,13 @@ DB_POOL_PRE_PING = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
 DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", 5))
 DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", 10))
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", 10))  # Optional
+
+
+UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
+UNSPLASH_SECRET_KEY = os.getenv("UNSPLASH_SECRET_KEY")
+
+
+CHROMA_DB_URL = os.getenv("CHROMA_DB_URL", "http://localhost:8000")
+
+
+AGENT_DEBUG_MODE = os.getenv("AGENT_DEBUG_MODE", "true").lower() == "true"
