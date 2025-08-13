@@ -7,6 +7,19 @@ logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
+
+# Configuration for the application
+# Password policy
+# These settings are used to enforce password complexity requirements
+MIN_PASSWORD_LENGTH = 3
+REQUIRE_UPPERCASE = False
+REQUIRE_LOWERCASE = False
+REQUIRE_DIGIT = False
+REQUIRE_SPECIAL_CHAR = False
+SPECIAL_CHARACTERS_REGEX_PATTERN = r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?~`]"
+
+
+
 # Database settings
 DB_USER = os.getenv("DB_USER", "your_db_user")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "your_db_password")
