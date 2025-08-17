@@ -73,7 +73,6 @@ app.include_router(search_router.router)  # Add search router
 app.include_router(statistics.router)
 app.include_router(auth_router.api_router)
 app.include_router(notes.router)
-#app.include_router(notifications.router)
 app.include_router(questions.router)
 app.include_router(chat.router)
 app.include_router(flashcard.router)
