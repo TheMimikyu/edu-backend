@@ -24,6 +24,8 @@ from .db.models import db_user as user_model
 from .utils import auth
 
 from .config.settings import SESSION_SECRET_KEY
+from .core.lifespan import lifespan
+
 
 
 # Create database tables
@@ -37,6 +39,7 @@ output_dir.mkdir(exist_ok=True)
 app = FastAPI(
     title="User Management API",
     root_path="/api",
+    lifespan=lifespan  # Use the lifespan context manager
 )
 
 
