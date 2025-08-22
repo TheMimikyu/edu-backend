@@ -28,6 +28,96 @@ edu-backend is a robust backend service designed for next-generation, AI-driven 
 	- Admin "login as user" capability  
 	- JWT-based authentication with secure cookies
 
+## Technical Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as API Layer
+    participant AgentService
+    participant StateManager
+    participant PlannerAgent
+    participant ExplainerAgent
+    participant HTMLAgent
+    participant TesterAgent
+    participant FlashcardAgent
+    participant DB as Database
+
+    User->>API: POST /api/courses (CourseRequest)
+    API->>AgentService: create_course(user_id, course_id, request, task_id)
+    
+    Note over AgentService: Bind documents and images to course
+    AgentService->>DB: update_document(course_id)
+    AgentService->>DB: update_image(course_id)
+    
+    Note over AgentService: Query planner agent for course structure
+    AgentService->>PlannerAgent: run(user_id, state, content)
+    PlannerAgent-->>AgentService: response_planner with chapters[]
+    
+    Note over AgentService: Save chapters and update course
+    AgentService->>StateManager: save_chapters(user_id, course_id, chapters)
+    AgentService->>DB: update_course(chapter_count)
+    
+    Note over AgentService: Process chapters in parallel
+    par Process Chapter 1
+        AgentService->>ExplainerAgent: run(user_id, state, chapter_content)
+        ExplainerAgent-->>AgentService: JSX explanation
+        
+        AgentService->>HTMLAgent: run(user_id, state, chapter_content)
+        HTMLAgent-->>AgentService: Reveal.js slides
+        
+        AgentService->>TesterAgent: run(user_id, state, chapter_content)
+        TesterAgent-->>AgentService: Test questions
+        
+        AgentService->>StateManager: save_chapter_content(chapter_1)
+    and Process Chapter 2
+        AgentService->>ExplainerAgent: run(user_id, state, chapter_content)
+        ExplainerAgent-->>AgentService: JSX explanation
+        
+        AgentService->>HTMLAgent: run(user_id, state, chapter_content)
+        HTMLAgent-->>AgentService: Reveal.js slides
+        
+        AgentService->>TesterAgent: run(user_id, state, chapter_content)
+        TesterAgent-->>AgentService: Test questions
+        
+        AgentService->>StateManager: save_chapter_content(chapter_2)
+    and Process Chapter N
+        Note over AgentService: ... parallel processing for all chapters
+    end
+    
+    Note over AgentService: All chapters processed
+    AgentService->>DB: update_course_status(FINISHED)
+    AgentService-->>API: Course creation completed
+    API-->>User: Course created successfully
+
+    Note over User: Optional: Generate Flashcards
+    User->>API: POST /api/anki/upload (PDF)
+    API->>FlashcardAgent: analyze_pdf()
+    FlashcardAgent-->>API: PDF analysis
+    
+    User->>API: POST /api/anki/generate
+    API->>FlashcardAgent: generate_flashcards()
+    
+    alt Testing Flashcards
+        FlashcardAgent->>FlashcardAgent: TestingFlashcardAgent.generate_questions()
+        FlashcardAgent->>FlashcardAgent: create_testing_deck()
+    else Learning Flashcards
+        FlashcardAgent->>FlashcardAgent: LearningFlashcardAgent.generate_learning_cards()
+        FlashcardAgent->>FlashcardAgent: create_learning_deck()
+    end
+    
+    FlashcardAgent-->>API: .apkg file ready
+    API-->>User: Flashcard deck generated
+
+    Note over User,DB: Key Components:
+    Note over User,DB: • PlannerAgent: Creates course structure with chapters
+    Note over User,DB: • ExplainerAgent: Generates React/JSX explanations  
+    Note over User,DB: • HTMLAgent: Creates Reveal.js slide presentations
+    Note over User,DB: • TesterAgent: Generates interactive test questions
+    Note over User,DB: • FlashcardAgent: Creates Anki flashcard decks
+    Note over User,DB: • StateManager: Manages cross-agent state
+```
+
 ## Tech Stack
 
 - Python
