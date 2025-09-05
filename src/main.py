@@ -13,7 +13,7 @@ from pathlib import Path
 import os
 
 from .api.routers import auth as auth_router
-from .api.routers import courses, files, users, statistics, questions
+from .api.routers import courses, files, users, questions
 from .api.routers import notes
 from .api.routers import chat
 from .api.routers import search as search_router
@@ -73,7 +73,6 @@ app.include_router(users.router)
 app.include_router(courses.router)
 app.include_router(files.router)
 app.include_router(search_router.router)  # Add search router
-app.include_router(statistics.router)
 app.include_router(auth_router.api_router)
 app.include_router(notes.router)
 app.include_router(questions.router)
