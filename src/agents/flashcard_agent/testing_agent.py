@@ -10,6 +10,7 @@ from google.adk.runners import Runner
 from .instructions_txt import instructions
 from .schema import MultipleChoiceQuestion, TaskStatus
 from ..agent import StandardAgent
+from ..rate_limiter import rate_limited
 from ..utils import create_text_query
 
 
@@ -148,14 +149,14 @@ class TestingFlashcardAgent(StandardAgent):
         random.shuffle(all_questions)
         return all_questions
 
-    async def _process_chunk_parallel(self, chunk: str, difficulty: str, chunk_questions: int, 
-                                    chunk_index: int, total_chunks: int, semaphore: asyncio.Semaphore, 
+    async def _process_chunk_parallel(self, chunk: str, difficulty: str, chunk_questions: int,
+                                    chunk_index: int, total_chunks: int, semaphore: asyncio.Semaphore,
                                     progress_callback=None, start_time=None) -> List[MultipleChoiceQuestion]:
         """Process a single chunk in parallel with rate limiting."""
         async with semaphore:
             try:
                 # Add small delay to avoid overwhelming the API
-                await asyncio.sleep(0.5 * chunk_index)
+                await asyncio.sleep(0.15 * chunk_index)  # lighter initial staggering
                 
                 prompt = f"""
                 Generate {chunk_questions} multiple choice questions from the following text content.
@@ -188,11 +189,13 @@ class TestingFlashcardAgent(StandardAgent):
                 ]
                 """
 
-                response = await self.run(
-                    user_id="system",
-                    state={},
-                    content=create_text_query(prompt)
-                )
+                async with semaphore:
+                    async with rate_limited():
+                        response = await self.run(
+                            user_id="system",
+                            state={},
+                            content=create_text_query(prompt)
+                        )
                 
                 if response.get("status") != "success":
                     print(f"Error in agent response: {response}")

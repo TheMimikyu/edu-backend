@@ -37,6 +37,7 @@ from google.genai import types
 
 from ..db.models.db_file import Document, Image
 from ..db.crud import usage_crud
+from ..agents.rate_limiter import rate_limited
 
 logger = getLogger(__name__)
 
@@ -229,10 +230,11 @@ class AgentService:
                 )
 
                 # Await both tasks to complete in parallel
-                response_code, image_response = await asyncio.gather(
-                    coding_task,
-                    image_task
-                )
+                async with rate_limited():
+                    response_code, image_response = await asyncio.gather(
+                        coding_task,
+                        image_task
+                    )
 
                 summary = "\n".join(topic['content'][:3])
 

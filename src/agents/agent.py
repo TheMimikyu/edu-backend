@@ -9,6 +9,7 @@ from typing import Any, Dict
 from google.genai import types
 
 from ..config import settings
+from .rate_limiter import rate_limited, compute_backoff, _MAX_RETRIES
 
 if not settings.AGENT_DEBUG_MODE:
     logging.getLogger("google_adk.google.adk.models.google_llm").setLevel(logging.WARNING)
@@ -33,7 +34,7 @@ class StandardAgent(ABC):
         :param debug: if true the method will print auxiliary outputs (all events)
         :return: the parsed dictionary response from the agent
         """
-        max_retries: int = 1
+        max_retries: int = _MAX_RETRIES
         retry_delay: float = 2.0
         last_error = None
         
@@ -86,7 +87,7 @@ class StandardAgent(ABC):
             # Only sleep if we're going to retry
             if attempt < max_retries:
                 import asyncio
-                await asyncio.sleep(retry_delay)
+                await asyncio.sleep(compute_backoff(attempt))
         
         # This should theoretically never be reached due to the raise/return above
         return {
@@ -113,8 +114,8 @@ class StructuredAgent(ABC):
         :param debug: if true the method will print auxiliary outputs (all events)
         :return: the parsed dictionary response from the agent
         """
-        max_retries: int = 1
-        retry_delay: float = 2.0
+        # override supplied max_retries with env-based unless caller passes bigger
+        max_retries = max(max_retries, _MAX_RETRIES)
         last_error = None
         
         for attempt in range(max_retries + 1):  # +1 for the initial attempt
@@ -168,16 +169,16 @@ class StructuredAgent(ABC):
                 last_error = error_msg
                 
             except Exception as e:
-                if attempt >= max_retries:
-                    raise  # Re-raise the exception if we've exhausted our retries
+                # Heuristic: escalate / 429 / rate / quota triggers backoff rather than immediate re-raise
+                rate_hint = any(k in str(e).lower() for k in ["429", "rate", "quota", "exceed"])
+                if attempt >= max_retries and not rate_hint:
+                    raise
                 last_error = str(e)
                 if debug:
-                    print(f"[RETRY] Attempt {attempt + 1} failed, retrying in {retry_delay} seconds... Error: {last_error}")
-            
-            # Only sleep if we're going to retry
+                    print(f"[RETRY-STRUCTURED] Attempt {attempt + 1} error: {last_error}")
             if attempt < max_retries:
                 import asyncio
-                await asyncio.sleep(retry_delay)
+                await asyncio.sleep(compute_backoff(attempt))
         
         # This should theoretically never be reached due to the raise/return above
         return {

@@ -12,6 +12,7 @@ from google.genai import types
 
 from ..agent import StructuredAgent, StandardAgent
 from ..code_checker.code_checker import ESLintValidator, clean_up_response
+from ..rate_limiter import rate_limited
 from ..utils import load_instruction_from_file, create_text_query, load_instructions_from_files
 from .schema import Test
 
@@ -83,11 +84,12 @@ class TesterAgent(StandardAgent):
     This agent runs code review for each generated question in parallel for efficiency.
     """
 
-    def __init__(self, app_name: str, session_service, iterations: int = 2):
+    def __init__(self, app_name: str, session_service, iterations: int = 2, max_parallel_reviews: int = 3):
         self.inital_tester = InitialTesterAgent(app_name=app_name, session_service=session_service)
         self.code_review = CodeReviewAgent(app_name=app_name, session_service=session_service)
         self.eslint = ESLintValidator()
         self.iterations = iterations
+        self._review_sem = asyncio.Semaphore(max_parallel_reviews)
 
     async def _review_and_correct_question(self, question: Dict[str, Any], user_id: str, state: dict) -> Optional[
         Dict[str, Any]]:
@@ -123,7 +125,9 @@ class TesterAgent(StandardAgent):
                 """
             )
             # Await the correction from the code review agent
-            response = await self.code_review.run(user_id=user_id, state=state, content=content)
+            async with self._review_sem:
+                async with rate_limited():
+                    response = await self.code_review.run(user_id=user_id, state=state, content=content)
             if 'explanation' not in response:
                 break
             else:
@@ -143,7 +147,8 @@ class TesterAgent(StandardAgent):
         :return: the parsed dictionary response from the agent
         """
         # 1. Get the initial list of questions
-        initial_response = await self.inital_tester.run(user_id=user_id, state=state, content=content)
+        async with rate_limited():
+            initial_response = await self.inital_tester.run(user_id=user_id, state=state, content=content)
         practice_questions = initial_response.get('questions', [])
 
         if not practice_questions:

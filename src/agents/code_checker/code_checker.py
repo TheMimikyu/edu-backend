@@ -169,10 +169,18 @@ class ESLintValidator:
         self.node_modules_path = os.path.join(self.eslint_base_dir, 'node_modules')
         self.eslint_executable = os.path.join(self.node_modules_path, '.bin', 'eslint')
 
-        for required_path in [self.config_file_path, self.package_json_path,
-                              self.node_modules_path, self.eslint_executable]:
-            if not os.path.exists(required_path):
-                raise FileNotFoundError(f"Required file/directory not found: {required_path}")
+        # NEW: build platform-safe command
+        if os.name == "nt":
+            # Prefer direct JS entry to avoid shim issues
+            eslint_js = os.path.join(self.node_modules_path, 'eslint', 'bin', 'eslint.js')
+            if not os.path.exists(eslint_js):
+                raise FileNotFoundError(f"Could not locate eslint.js at {eslint_js}")
+            self.eslint_cmd_base = ["node", eslint_js]
+        else:
+            # On Unix the .bin script is fine
+            if not os.path.exists(self.eslint_executable):
+                raise FileNotFoundError(f"Could not locate eslint executable at {self.eslint_executable}")
+            self.eslint_cmd_base = [self.eslint_executable]
 
         # Create a temporary directory for JSX files (reused across validations)
         self.temp_jsx_dir = os.path.join(self.eslint_base_dir, 'temp_jsx_files')
@@ -210,13 +218,14 @@ class ESLintValidator:
             eslint_env['HOME'] = '/home/app'
 
             # Run ESLint
-            lint_process = subprocess.run([
-                self.eslint_executable,
+            cmd = self.eslint_cmd_base + [
                 '--quiet',
                 '--format', 'json',
                 '--config', self.config_file_path,
                 temp_file_path
-            ],
+            ]
+            lint_process = subprocess.run(
+                cmd,
                 capture_output=True,
                 text=True,
                 cwd=self.eslint_base_dir,
@@ -232,9 +241,17 @@ class ESLintValidator:
                 'errors': [{'message': lint_process.stderr.strip()}] if lint_process.stderr else []
             }
 
-        except (OSError, RuntimeError) as e:
-            return {'valid': False, 'errors': [{'message': f"An unexpected error occurred: {str(e)}"}]}
-
+        except OSError as e:
+            # Improved Windows-specific hint
+            if getattr(e, 'winerror', None) == 193:
+                return {'valid': False, 'errors': [{
+                    'message': 'WinError 193: Tried to execute a non-Windows binary. '
+                               'Probable cause: invoking Unix shim of ESLint. '
+                               'Fix applied: now using "node eslint.js". If this persists ensure Node is installed and in PATH.'
+                }]}
+            return {'valid': False, 'errors': [{'message': f"An unexpected OS error occurred: {str(e)}"}]}
+        except RuntimeError as e:
+            return {'valid': False, 'errors': [{'message': f"Runtime error: {str(e)}"}]}
         finally:
             # Clean up
             try:

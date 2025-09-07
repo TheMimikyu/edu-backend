@@ -18,6 +18,7 @@ from google.genai import types
 
 from ..agent import StructuredAgent
 from ..utils import load_instruction_from_file
+from ..rate_limiter import rate_limited
 
 from google.adk.sessions import DatabaseSessionService
 from google.adk.runners import RunConfig
@@ -81,31 +82,32 @@ class ChatAgent:
                     )
                 
                 # We iterate through events and yield them as they come in
-                async for event in self.runner.run_async(
-                    user_id=user_id,
-                    session_id=session.id,
-                    new_message=content,
-                    run_config=RunConfig(streaming_mode=StreamingMode.SSE)
-                ):
-                    if debug:
-                        print(f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Content: {event.content}")
+                async with rate_limited():
+                    async for event in self.runner.run_async(
+                        user_id=user_id,
+                        session_id=session.id,
+                        new_message=content,
+                        run_config=RunConfig(streaming_mode=StreamingMode.SSE)
+                    ):
+                        if debug:
+                            print(f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Content: {event.content}")
 
-                    # Check for text content in the event
-                    if event.content and event.content.parts:
-                        # Yield each text part
-                        for part in event.content.parts:
-                            if hasattr(part, 'text') and part.text:
-                                yield part.text, event.is_final_response()
-                    
-                    # Handle final response or errors
-                    if event.is_final_response():
-                        if event.actions and event.actions.escalate:
-                            error_msg = f"Agent escalated: {event.error_message or 'No specific message.'}"
-                            if attempt >= max_retries:
-                                raise Exception(error_msg)
-                            last_error = error_msg
-                            break
-                        return  # Successfully completed
+                        # Check for text content in the event
+                        if event.content and event.content.parts:
+                            # Yield each text part
+                            for part in event.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    yield part.text, event.is_final_response()
+                        
+                        # Handle final response or errors
+                        if event.is_final_response():
+                            if event.actions and event.actions.escalate:
+                                error_msg = f"Agent escalated: {event.error_message or 'No specific message.'}"
+                                if attempt >= max_retries:
+                                    raise Exception(error_msg)
+                                last_error = error_msg
+                                break
+                            return  # Successfully completed
                 
                 # If we get here, no final response was received
                 error_msg = "Agent did not give a final response. Unknown error occurred."
