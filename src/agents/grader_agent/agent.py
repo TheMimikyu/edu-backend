@@ -2,6 +2,7 @@
 This defines a GraderAgent class which wraps the event handling and runner from adk into a simple run() method
 """
 import json
+import os
 from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
@@ -21,7 +22,7 @@ class GraderAgent(StructuredAgent):
             model="gemini-2.0-flash",
             description="Agent for testing the user on studied material",
             output_schema=Grading,
-            instruction=lambda _: load_instruction_from_file("grader_agent/instructions.txt"),
+            instruction=lambda _: load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")),
             disallow_transfer_to_parent=True,
             disallow_transfer_to_peers=True
         )

@@ -36,7 +36,7 @@ class ChatAgent:
             name="chat_agent",
             model="gemini-2.5-flash-preview-05-20",
             description="Agent for creating a small chat for a course",
-            instruction=load_instruction_from_file("chat_agent/instructions.txt"),
+            instruction=load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")),
         )
         self.app_name = app_name
         self.session_service = session_service

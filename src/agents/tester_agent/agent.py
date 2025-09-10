@@ -18,9 +18,11 @@ from .schema import Test
 
 def get_full_instructions(code_review: bool = False,):
     """ Returns the full instructions for the initial tester or code review agent."""
-    files = ["explainer_agent/instructions.txt"] if not code_review else []
-    files.extend([f"explainer_agent/plugin_docs/{filename}" for filename in
-                  os.listdir(os.path.join(os.path.dirname(__file__), "plugin_docs"))])
+    base_dir = os.path.dirname(__file__)
+    explainer_dir = os.path.abspath(os.path.join(base_dir, "..", "explainer_agent"))
+    files = [] if code_review else [os.path.join(explainer_dir, "instructions.txt")]
+    plugin_dir = os.path.join(explainer_dir, "plugin_docs")
+    files.extend([os.path.join(plugin_dir, filename) for filename in os.listdir(plugin_dir)])
     full_instructions = load_instructions_from_files(sorted(files))
     return full_instructions
 
@@ -33,7 +35,7 @@ class InitialTesterAgent(StructuredAgent):
             model="gemini-2.5-flash",
             description="Agent for testing the user on studied material",
             output_schema=Test,
-            global_instruction=lambda _: load_instruction_from_file("tester_agent/instructions.txt") + "\n" + get_full_instructions(),
+            global_instruction=lambda _: load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")) + "\n" + get_full_instructions(),
             instruction="""
             Initial User Query for Course Creation:
             {query}

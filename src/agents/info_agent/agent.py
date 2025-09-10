@@ -28,7 +28,7 @@ class InfoAgent(StructuredAgent):
             model="gemini-2.5-flash-lite-preview-06-17",
             output_schema=CourseInfo,
             description="Agent for creating a small info for a course",
-            instruction=load_instruction_from_file("info_agent/instructions.txt"),
+            instruction=load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")),
             disallow_transfer_to_parent=True,
             disallow_transfer_to_peers=True,
         )

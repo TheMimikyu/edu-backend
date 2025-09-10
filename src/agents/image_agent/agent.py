@@ -46,7 +46,7 @@ class ImageAgent(StandardAgent):
             name="image_agent",
             model="gemini-2.5-flash-lite-preview-06-17",
             description="Agent for searching an image for a course using an external service.",
-            instruction=load_instruction_from_file("image_agent/instructions.txt"),
+            instruction=load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")),
             tools=[unsplash_mcp_toolset],
             after_model_callback=get_url_from_response
         )

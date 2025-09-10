@@ -17,8 +17,10 @@ from ..utils import load_instructions_from_files, create_text_query
 
 class CodingExplainer(StandardAgent):
     def __init__(self, app_name: str, session_service):
-        files = ["explainer_agent/instructions.txt"]
-        files.extend([f"explainer_agent/plugin_docs/{filename}" for filename in os.listdir(os.path.join(os.path.dirname(__file__), "plugin_docs"))])
+        base_dir = os.path.dirname(__file__)
+        files = [os.path.join(base_dir, "instructions.txt")]
+        plugin_dir = os.path.join(base_dir, "plugin_docs")
+        files.extend([os.path.join(plugin_dir, filename) for filename in os.listdir(plugin_dir)])
         full_instructions = load_instructions_from_files(sorted(files))
 
         dynamic_instructions = """

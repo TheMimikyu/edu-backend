@@ -2,6 +2,7 @@
 This defines a PlannerAgent class which wraps the event handling and runner from adk into a simple run() method
 """
 import json
+import os
 from typing import Dict, Any
 
 from google.adk.agents import LlmAgent
@@ -21,7 +22,7 @@ class PlannerAgent(StructuredAgent):
             model="gemini-2.5-flash-lite-preview-06-17",
             description="Agent for planning Learning Paths and Courses",
             output_schema=LearningPath,
-            instruction=load_instruction_from_file("planner_agent/instructions.txt"),
+            instruction=load_instruction_from_file(os.path.join(os.path.dirname(__file__), "instructions.txt")),
             disallow_transfer_to_parent=True,
             disallow_transfer_to_peers=True
         )
