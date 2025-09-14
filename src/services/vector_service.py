@@ -1,10 +1,10 @@
 import chromadb
-from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict, Optional
+from typing import Dict, Optional
+import torch
 from ..config.chroma_settings import (
-    CHROMA_HOST, CHROMA_PORT, CHROMA_COLLECTION_NAME, 
-    EMBEDDING_MODEL, CHROMA_CLIENT_TYPE
+    CHROMA_HOST, CHROMA_PORT,
+    EMBEDDING_MODEL, CHROMA_CLIENT_TYPE, EMBEDDING_DEVICE
 )
 
 class VectorService:
@@ -18,8 +18,20 @@ class VectorService:
         else:
             # Fallback for development
             self.client = chromadb.PersistentClient(path="./chroma_db")
-            
-        self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
+        
+        # Select device for embeddings (prefer GPU if available, or override via env)
+        if EMBEDDING_DEVICE:
+            device = EMBEDDING_DEVICE
+        else:
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+
+        self.embedding_model = SentenceTransformer(EMBEDDING_MODEL, device=device)
+        print(f"SentenceTransformer device: {device}")
 
     def create_collection(self, collection_id: str):
         """Create a new collection in the vector store"""

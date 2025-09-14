@@ -1,74 +1,80 @@
-# Use an official Python runtime as a parent image
+# syntax=docker/dockerfile:1
+
+# --- Builder Stage ---
 FROM python:3.10-slim AS builder
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy
 
-# Set work directory
 WORKDIR /usr/src/app
 
-# Install system dependencies required for some Python packages (if any)
-# For example, if you were using psycopg2 for PostgreSQL and needed build tools:
-# RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
-#    && rm -rf /var/lib/apt/lists/*
+# System deps (add build-essential if you need to compile native extensions)
+RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install pipenv (if you were using it, otherwise skip)
-# RUN pip install --upgrade pip
-# RUN pip install pipenv
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
 
-# Copy requirements.txt first to leverage Docker cache
-COPY requirements.txt .
+# Copy dependency specification first for better caching
+COPY pyproject.toml ./
+# Copy lock file if it exists (won't fail if absent)
+COPY uv.lock* ./
 
-# Install dependencies
-RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt
+# Create virtual environment & install deps (use --frozen if lock present)
+# If uv.lock exists this is reproducible; otherwise it resolves fresh.
+RUN if [ -f uv.lock ]; then uv sync --frozen --no-install-project; else uv sync --no-install-project; fi
 
+# Now copy project source to install the project itself (editable style not needed in final image)
+COPY src ./src
+
+# Install the project (adds your package to the venv)
+RUN uv pip install --no-cache-dir ./src
 
 # --- Final Stage ---
 FROM python:3.10-slim
 
-# Install Node.js and npm
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install Node.js and npm (for ESLint part)
 RUN apt-get update && apt-get install -y curl gnupg \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user with proper home directory
+# Create non-root user
 RUN addgroup --system app && adduser --system --group app --home /home/app --shell /bin/bash
 
-# Set up ESLint environment BEFORE switching users
+# ESLint setup
 WORKDIR /opt/eslint-setup
 COPY ./src/agents/code_checker/package.json ./src/agents/code_checker/eslint.config.js ./
-RUN npm install
-RUN chown -R app:app /opt/eslint-setup
+RUN npm install && chown -R app:app /opt/eslint-setup && chmod -R 755 /opt/eslint-setup
 
-# Make this directory accessible to your app
-RUN chmod -R 755 /opt/eslint-setup
-
-# Set work directory
+# App workdir
 WORKDIR /home/app/web
 
-# Copy pre-built wheels and install Python dependencies
-COPY --from=builder /usr/src/app/wheels /wheels
-COPY --from=builder /usr/src/app/requirements.txt .
-RUN pip install --no-cache /wheels/*
+# Copy virtual environment from builder
+COPY --from=builder /usr/src/app/.venv ./.venv
 
-# Copy project
-COPY ./src ./app
+# Copy metadata & source
+COPY pyproject.toml ./
+COPY src ./app
 
-# Create npm directories and set proper ownership
+# Ensure permissions
 RUN mkdir -p /home/app/.npm /home/app/.config \
-    && chown -R app:app /home/app \
-    && chown -R app:app /home/app/web
+    && chown -R app:app /home/app /home/app/web
 
-# Switch to the non-root user
 USER app
 
-# Set npm environment variables
-ENV NPM_CONFIG_CACHE=/home/app/.npm
-ENV NPM_CONFIG_PREFIX=/home/app/.npm-global
+# Environment so the venv is used
+ENV PATH="/home/app/web/.venv/bin:${PATH}" \
+    NPM_CONFIG_CACHE=/home/app/.npm \
+    NPM_CONFIG_PREFIX=/home/app/.npm-global
 ENV PATH=/home/app/.npm-global/bin:$PATH
 
 EXPOSE 8000
-# später workercount per variable setzen
-CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS}
+
+# Use python from venv implicitly via PATH
+CMD uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-1}
